@@ -1,6 +1,7 @@
 import { Camera, FileText, Mic } from 'lucide-react';
 import type { Metadata } from 'next';
 import { Card, CardContent } from '@/components/ui/card';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Home | CogniBlock',
@@ -11,23 +12,27 @@ function UploadOptionCard({
   icon,
   title,
   description,
+  href,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
+  href: string;
 }) {
   return (
-    <Card className="group cursor-pointer overflow-hidden text-center transition-all duration-300 ease-in-out hover:shadow-2xl hover:-translate-y-2 hover:border-accent/50 bg-card/50 backdrop-blur-sm">
-      <CardContent className="flex h-full flex-col items-center justify-center gap-4 p-8">
-        <div className="rounded-full bg-accent/10 p-5 transition-colors duration-300 group-hover:bg-accent/20">
-          {icon}
-        </div>
-        <div>
-          <h3 className="text-xl font-bold text-foreground">{title}</h3>
-          <p className="mt-1 text-muted-foreground">{description}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <Link href={href} className="block">
+      <Card className="group cursor-pointer overflow-hidden text-center transition-all duration-300 ease-in-out hover:shadow-2xl hover:-translate-y-2 hover:border-accent/50 bg-card/50 backdrop-blur-sm h-full">
+        <CardContent className="flex h-full flex-col items-center justify-center gap-4 p-8">
+          <div className="rounded-full bg-accent/10 p-5 transition-colors duration-300 group-hover:bg-accent/20">
+            {icon}
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-foreground">{title}</h3>
+            <p className="mt-1 text-muted-foreground">{description}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -50,16 +55,19 @@ export default function Home() {
             icon={<Camera className="size-12 text-accent" />}
             title="Photo Upload"
             description="Snap or select a picture"
+            href="/photo"
           />
           <UploadOptionCard
             icon={<FileText className="size-12 text-accent" />}
             title="Text Upload"
             description="Paste or type your thoughts"
+            href="#"
           />
           <UploadOptionCard
             icon={<Mic className="size-12 text-accent" />}
             title="Voice Upload"
             description="Record a quick audio note"
+            href="#"
           />
         </div>
       </div>
