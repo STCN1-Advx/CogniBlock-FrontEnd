@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { useUser } from '@/contexts/user-context';
 
 const UploadIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -256,6 +257,7 @@ function AIAnalysisStatus() {
  */
 export function CanvasSidebar() {
   const [activeTab, setActiveTab] = useState<'my-cards' | 'community'>('my-cards');
+  const { user } = useUser();
 
   // 示例卡片数据
   const sampleCard = {
@@ -265,10 +267,196 @@ export function CanvasSidebar() {
   };
 
   /**
-   * 处理上传按钮点击
+   * 处理上传按钮点击 - 拍摄照片并生成笔记总结
    */
-  const handleUpload = () => {
-    console.log('上传文件');
+  const handleUpload = async () => {
+    try {
+      // 请求摄像头权限
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } // 优先使用后置摄像头
+      });
+      
+      // 创建视频元素
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      
+      // 创建摄像头预览模态框
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div class="text-center mb-4">
+            <h3 class="text-lg font-semibold">拍摄照片</h3>
+          </div>
+          <div class="relative mb-4">
+            <video id="camera-preview" class="w-full rounded-lg" autoplay playsinline></video>
+          </div>
+          <div class="flex justify-center space-x-4">
+            <button id="capture-btn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+              拍摄
+            </button>
+            <button id="cancel-btn" class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400">
+              取消
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      const videoElement = modal.querySelector('#camera-preview') as HTMLVideoElement;
+      videoElement.srcObject = stream;
+      
+      // 处理拍摄按钮点击
+      const captureBtn = modal.querySelector('#capture-btn');
+      const cancelBtn = modal.querySelector('#cancel-btn');
+      
+      const cleanup = () => {
+        stream.getTracks().forEach(track => track.stop());
+        document.body.removeChild(modal);
+      };
+      
+      cancelBtn?.addEventListener('click', cleanup);
+      
+      captureBtn?.addEventListener('click', async () => {
+        try {
+          // 创建canvas来捕获图像
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          
+          canvas.width = videoElement.videoWidth;
+          canvas.height = videoElement.videoHeight;
+          
+          context?.drawImage(videoElement, 0, 0);
+          
+          // 转换为blob
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              cleanup();
+              await processImageWithAPI(blob);
+            }
+          }, 'image/jpeg', 0.8);
+          
+        } catch (error) {
+          console.error('拍摄失败:', error);
+          alert('拍摄失败，请重试');
+        }
+      });
+      
+    } catch (error) {
+      console.error('无法访问摄像头:', error);
+      alert('无法访问摄像头，请检查权限设置');
+    }
+  };
+  
+  /**
+   * 调用笔记总结API处理图片
+   */
+  const processImageWithAPI = async (imageBlob: Blob) => {
+    try {
+      // 显示处理中状态
+      const processingModal = document.createElement('div');
+      processingModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      processingModal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 text-center">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p class="text-gray-600">正在处理图片并生成笔记...</p>
+        </div>
+      `;
+      document.body.appendChild(processingModal);
+      
+      // 直接将图片发送给笔记总结API
+      const formData = new FormData();
+      formData.append('file', imageBlob, 'camera-capture.jpg');
+      
+      const baseUrl = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:8000' : '';
+      
+      // 直接调用笔记总结API处理图片
+      const summaryResponse = await fetch(`${baseUrl}/api/v2/note-summary-single/process?action=summarize`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-User-ID': user?.id || 'anonymous'
+        }
+      });
+      
+      if (!summaryResponse.ok) {
+        throw new Error('笔记总结失败');
+      }
+      
+      const summaryResult = await summaryResponse.text();
+      
+      // 移除处理中模态框
+      document.body.removeChild(processingModal);
+      
+      // 显示结果
+      showSummaryResult(summaryResult);
+      
+    } catch (error) {
+      console.error('处理图片失败:', error);
+      alert('处理图片失败，请重试');
+      
+      // 移除处理中模态框（如果存在）
+      const processingModal = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50');
+      if (processingModal) {
+        document.body.removeChild(processingModal);
+      }
+    }
+  };
+  
+  /**
+   * 显示笔记总结结果
+   */
+  const showSummaryResult = (markdownContent: string) => {
+    const resultModal = document.createElement('div');
+    resultModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    resultModal.innerHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold">笔记总结</h3>
+          <button id="close-result" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="prose max-w-none mb-4">
+          <textarea class="w-full h-64 p-3 border border-gray-300 rounded-lg resize-none" readonly>${markdownContent}</textarea>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button id="copy-result" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+            复制内容
+          </button>
+          <button id="save-result" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+            保存到画布
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(resultModal);
+    
+    // 绑定事件
+    const closeBtn = resultModal.querySelector('#close-result');
+    const copyBtn = resultModal.querySelector('#copy-result');
+    const saveBtn = resultModal.querySelector('#save-result');
+    
+    closeBtn?.addEventListener('click', () => {
+      document.body.removeChild(resultModal);
+    });
+    
+    copyBtn?.addEventListener('click', () => {
+      navigator.clipboard.writeText(markdownContent);
+      alert('内容已复制到剪贴板');
+    });
+    
+    saveBtn?.addEventListener('click', () => {
+      // 这里可以添加保存到画布的逻辑
+      console.log('保存到画布:', markdownContent);
+      alert('已保存到画布');
+      document.body.removeChild(resultModal);
+    });
   };
 
   /**

@@ -680,10 +680,17 @@ export default function CanvasPage() {
   };
 
   /**
-   * 处理卡片点击事件 - 层级管理
+   * 处理卡片点击事件 - 进入编辑模式
    */
   const handleCardClick = (clickedItemId: string) => {
     if (!knowledgeBase) return;
+
+    // 查找被点击的卡片
+    const clickedItem = knowledgeBase.items.find(item => item.id === clickedItemId);
+    if (!clickedItem) return;
+
+    // 进入编辑模式
+    handleEditItem(clickedItem);
 
     // 保存当前状态到历史记录
     saveToHistory(knowledgeBase);
