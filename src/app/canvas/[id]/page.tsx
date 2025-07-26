@@ -26,7 +26,7 @@ import { useHeaderAwarePositioning } from '@/hooks/use-header-aware-positioning'
 import { Toolbar } from '@/components/ui/toolbar';
 import { CanvasSidebar } from '@/components/canvas-sidebar';
 import { useUser } from '@/contexts/user-context';
-import { pullCanvasState, pushCanvasState, RawCardResponse, getArticleById, ArticleContent } from '@/lib/canvas-api';
+import { pullCanvasState, pushCanvasState, RawCardResponse, getContentById, ContentDetail } from '@/lib/canvas-api';
 import {
   DndContext,
   DragEndEvent,
@@ -44,6 +44,51 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
+/**
+ * 格式化时间戳为更美观的显示格式
+ * @param isoString ISO 格式的时间戳
+ * @returns 格式化后的时间字符串
+ */
+function formatTimestamp(isoString: string): string {
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    // 如果是今天
+    if (diffDays === 0) {
+      if (diffMinutes < 1) {
+        return '刚刚';
+      } else if (diffMinutes < 60) {
+        return `${diffMinutes}分钟前`;
+      } else {
+        return `${diffHours}小时前`;
+      }
+    }
+    // 如果是昨天
+    else if (diffDays === 1) {
+      return `昨天 ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    // 如果是一周内
+    else if (diffDays < 7) {
+      return `${diffDays}天前`;
+    }
+    // 如果是今年
+    else if (date.getFullYear() === now.getFullYear()) {
+      return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+    }
+    // 其他情况显示完整日期
+    else {
+      return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    }
+  } catch (error) {
+    // 如果解析失败，返回原始字符串
+    return isoString;
+  }
+}
 
 // 知识项数据类型定义
 interface KnowledgeItem {
@@ -330,7 +375,7 @@ function DraggableKnowledgeItemCard({
                <h3 className="text-xs font-semibold text-gray-950 leading-tight mb-0.5">
                  {item.title}
                </h3>
-               <span className="text-xs text-gray-600 font-medium">{item.createdAt}</span>
+               <span className="text-xs text-gray-600 font-medium">{formatTimestamp(item.createdAt)}</span>
              </div>
            </div>
            <div className="flex space-x-1 ml-2">
@@ -506,23 +551,23 @@ export default function CanvasPage() {
           
           // 并行获取所有卡片的详细内容
           const itemsPromises = cards.map(async (card: RawCardResponse) => {
-            let articleContent: ArticleContent | null = null;
+            let contentDetail: ContentDetail | null = null;
             
-            // 根据content_id获取文档内容
+            // 根据content_id获取内容详情
             if (card.content_id) {
               try {
-                articleContent = await getArticleById(card.content_id, user.id);
+                contentDetail = await getContentById(card.content_id, user.id);
               } catch (error) {
-                console.warn(`Failed to fetch article content for content_id ${card.content_id}:`, error);
+                console.warn(`Failed to fetch content detail for content_id ${card.content_id}:`, error);
               }
             }
             
             return {
-              id: card.id.toString(),
-              type: 'text' as const,
-              title: articleContent?.summary_title || articleContent?.filename || `Card ${card.id}`,
-              content: articleContent?.text_data || card.summary || `Content for card ${card.id}`,
-              summary: articleContent?.summary_content || card.summary || `Summary for card ${card.id}`,
+              id: card.id ? card.id.toString() : `card-${Date.now()}-${Math.random()}`,
+              type: (contentDetail?.content_type === 'image' ? 'image' : 'text') as 'text' | 'image' | 'link' | 'note',
+              title: contentDetail?.summary_title || `Card ${card.id || 'Unknown'}`,
+              content: contentDetail?.text_data || contentDetail?.debug_info?.effective_content || card.summary || `Content for card ${card.id || 'Unknown'}`,
+              summary: contentDetail?.summary_content || contentDetail?.text_data_preview || card.summary || `Summary for card ${card.id || 'Unknown'}`,
               position: { x: card.position_x, y: card.position_y },
               size: { width: 250, height: 150 },
               centerOffset: { x: 0, y: 0 },
@@ -532,8 +577,8 @@ export default function CanvasPage() {
                 title: { left: true, right: true },
                 content: { left: true, right: true },
               },
-              createdAt: articleContent?.created_at || new Date().toISOString(),
-              updatedAt: articleContent?.updated_at || new Date().toISOString(),
+              createdAt: contentDetail?.created_at || new Date().toISOString(),
+              updatedAt: contentDetail?.updated_at || new Date().toISOString(),
             };
           });
           

@@ -31,7 +31,9 @@ export const getArticleList = (userId: string, skip: number = 0, limit: number =
     params.append('permission', permission.toString());
   }
   
-  return apiGet<ArticleListResponse>(`/api/v2/article/?${params.toString()}`, {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  const fullUrl = `${baseUrl}/api/v2/article/?${params.toString()}`;
+  return apiGet<ArticleListResponse>(fullUrl, {
     headers: {
       'X-User-ID': userId,
     },
@@ -39,12 +41,14 @@ export const getArticleList = (userId: string, skip: number = 0, limit: number =
 };
 
 /**
- * 根据content_id获取文档内容
+ * 根据content_id获取内容详情
  * @param contentId 内容ID
  * @param userId 用户ID
  */
-export const getArticleById = (contentId: number, userId: string): Promise<ArticleContent> => {
-  return apiGet<ArticleContent>(`/api/v2/article/${contentId}`, {
+export const getContentById = (contentId: number, userId: string): Promise<ContentDetail> => {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  const fullUrl = `${baseUrl}/api/v2/content/content/${contentId}`;
+  return apiGet<ContentDetail>(fullUrl, {
     headers: {
       'X-User-ID': userId,
     },
@@ -65,29 +69,38 @@ export interface CanvasInfo {
 }
 
 /**
- * 文档内容接口
+ * 内容详情接口
  */
-export interface ArticleContent {
+export interface ContentDetail {
   id: number;
   content_type: string;
   text_data: string;
+  text_data_length: number;
+  text_data_preview: string;
   image_data: string;
-  summary_title: string;
-  summary_topic: string;
-  summary_content: string;
-  summary_status: string;
-  filename: string;
-  file_size: number;
+  image_data_length: number;
+  image_data_has_data: boolean;
+  summary_title: string | null;
+  summary_topic: string | null;
+  summary_content: string | null;
+  summary_status: string | null;
+  content_hash: string | null;
   created_at: string;
   updated_at: string;
-  permission: string;
+  debug_info: {
+    has_text_data: boolean;
+    has_image_data: boolean;
+    effective_content: string;
+    effective_content_length: number;
+    effective_content_preview: string;
+  };
 }
 
 /**
  * 文档列表响应接口
  */
 export interface ArticleListResponse {
-  articles: ArticleContent[];
+  articles: ContentDetail[];
   total: number;
 }
 
@@ -96,7 +109,9 @@ export interface ArticleListResponse {
  * @param userId 用户ID
  */
 export const getCanvasList = (userId: string): Promise<number[]> => {
-  return apiGet<number[]>(`/api/v2/canva/list`, {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  const fullUrl = `${baseUrl}/api/v2/canva/list`;
+  return apiGet<number[]>(fullUrl, {
     headers: {
       'x-user-id': userId,
     },
@@ -125,7 +140,9 @@ export const pullCanvasState = (canvasId: number, userId: string): Promise<RawCa
  * @param userId 用户ID
  */
 export const pushCanvasState = (canvasId: number, cards: CardResponse[], userId: string): Promise<{ message: string }> => {
-  return apiPost<{ message: string }>(`/api/v2/canva/push`, { canva_id: canvasId, cards }, {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  const fullUrl = `${baseUrl}/api/v2/canva/push`;
+  return apiPost<{ message: string }>(fullUrl, { canva_id: canvasId, cards }, {
     headers: {
       'X-User-ID': userId,
     },
@@ -138,7 +155,9 @@ export const pushCanvasState = (canvasId: number, cards: CardResponse[], userId:
  * @param userId 用户ID
  */
 export const getCanvasInfo = (canvasId: number, userId: string): Promise<CanvasInfo> => {
-  return apiGet<CanvasInfo>(`/api/v2/canva/info/${canvasId}`, {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  const fullUrl = `${baseUrl}/api/v2/canva/info/${canvasId}`;
+  return apiGet<CanvasInfo>(fullUrl, {
     headers: {
       'X-User-ID': userId,
     },
