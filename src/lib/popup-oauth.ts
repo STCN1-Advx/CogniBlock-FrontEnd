@@ -47,20 +47,36 @@ export function popupOAuthLogin(): Promise<OAuthResult> {
     
     // 监听来自弹窗的消息
     const messageHandler = (event: MessageEvent) => {
-      // 验证消息来源
-      if (event.origin !== new URL(API_BASE_URL).origin) {
+      console.log('收到消息:', event.origin, event.data);
+      
+      // 验证消息来源（弹窗回调页面来自API服务器）
+      const apiOrigin = new URL(API_BASE_URL).origin;
+      if (event.origin !== apiOrigin) {
+        console.log('忽略来自未知来源的消息:', event.origin, '期望:', apiOrigin);
         return;
       }
       
       // 处理OAuth结果
       if (event.data && event.data.type === 'oauth_result') {
+        console.log('处理OAuth结果:', event.data.payload);
         window.removeEventListener('message', messageHandler);
         popup.close();
+        
+        // 安全检查payload是否存在
+        if (!event.data.payload) {
+          console.error('OAuth结果payload为空');
+          resolve({
+            success: false,
+            error: 'OAuth回调数据格式错误'
+          });
+          return;
+        }
         
         const result = event.data.payload as OAuthResult;
         
         // 如果登录成功，设置cookie
         if (result.success && result.sessionId && result.userId) {
+          console.log('设置Cookie:', result.sessionId, result.userId);
           setCookies(result.sessionId, result.userId);
         }
         

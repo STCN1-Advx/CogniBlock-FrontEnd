@@ -80,10 +80,13 @@
             // 向父窗口发送消息
             function sendMessageToParent(result) {
                 if (window.opener) {
+                    // 发送消息到父窗口，使用通配符origin或者具体的父窗口origin
+                    const parentOrigin = '*'; // 在生产环境中应该使用具体的origin
                     window.opener.postMessage({
                         type: 'oauth_result',
                         payload: result
-                    }, window.location.origin);
+                    }, parentOrigin);
+                    console.log('发送消息到父窗口:', result);
                 }
             }
             
@@ -119,17 +122,16 @@
                     
                     updateUI('正在验证...', '正在验证授权码，请稍候');
                     
-                    // 调用弹窗回调API
-                    const response = await fetch(`${API_BASE_URL}/api/v2/auth/oauth/popup-callback`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        credentials: 'include',
-                        body: JSON.stringify({
-                            code: code,
-                            state: state
-                        })
+                    // 调用弹窗回调API（使用GET方法，参数通过URL传递）
+                    const callbackUrl = new URL(`${API_BASE_URL}/api/v2/auth/oauth/popup-callback`);
+                    callbackUrl.searchParams.set('code', code);
+                    if (state) {
+                        callbackUrl.searchParams.set('state', state);
+                    }
+                    
+                    const response = await fetch(callbackUrl.toString(), {
+                        method: 'GET',
+                        credentials: 'include'
                     });
                     
                     if (response.ok) {

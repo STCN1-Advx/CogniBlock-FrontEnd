@@ -169,14 +169,28 @@ export default function Test403Page() {
         return;
       }
 
+      console.log('开始弹窗登录测试...');
       const result = await popupOAuthLogin();
+      console.log('弹窗登录结果:', result);
       
       if (result.success) {
         setResult(`弹窗登录成功!\n用户ID: ${result.userId}\nSession ID: ${result.sessionId}`);
+        
+        // 验证Cookie是否设置成功
+        setTimeout(() => {
+          const cookies = document.cookie;
+          console.log('当前Cookie:', cookies);
+          if (cookies.includes('session-id') && cookies.includes('x-user-id')) {
+            setResult(prev => prev + '\n\nCookie设置成功!');
+          } else {
+            setResult(prev => prev + '\n\n警告: Cookie可能未正确设置');
+          }
+        }, 1000);
       } else {
         setError(`弹窗登录失败: ${result.error}`);
       }
     } catch (err) {
+      console.error('弹窗登录异常:', err);
       const errorMessage = err instanceof Error ? err.message : '未知错误';
       setError('弹窗登录错误: ' + errorMessage);
     } finally {
