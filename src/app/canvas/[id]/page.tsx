@@ -24,6 +24,9 @@ import {
 } from 'lucide-react';
 import { useHeaderAwarePositioning } from '@/hooks/use-header-aware-positioning';
 import { Toolbar } from '@/components/ui/toolbar';
+import { CanvasSidebar } from '@/components/canvas-sidebar';
+import { useUser } from '@/contexts/user-context';
+import { pullCanvasState, pushCanvasState, RawCardResponse, getArticleById, ArticleContent } from '@/lib/canvas-api';
 import {
   DndContext,
   DragEndEvent,
@@ -82,11 +85,13 @@ function DraggableKnowledgeItemCard({
   item, 
   onEdit, 
   onDelete,
+  onCardClick,
   isSelected = false
 }: { 
   item: KnowledgeItem;
   onEdit: (item: KnowledgeItem) => void;
   onDelete: (id: string) => void;
+  onCardClick?: (itemId: string) => void;
   isSelected?: boolean;
 }) {
   const {
@@ -253,6 +258,20 @@ function DraggableKnowledgeItemCard({
      return points;
    };
 
+  /**
+   * 处理卡片点击事件
+   */
+  const handleCardClick = (e: React.MouseEvent) => {
+    // 如果点击的是编辑或删除按钮，不触发卡片点击
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    
+    if (onCardClick) {
+      onCardClick(item.id);
+    }
+  };
+
   return (
       <Card 
           ref={setNodeRef}
@@ -266,6 +285,7 @@ function DraggableKnowledgeItemCard({
           } ${
             isSelected ? 'ring-2 ring-blue-500' : ''
           }`}
+          onClick={handleCardClick}
           {...listeners}
           {...attributes}
         >
@@ -299,19 +319,19 @@ function DraggableKnowledgeItemCard({
          </div>
       
       {/* 标题区域 */}
-       <div className="bg-white border-t border-gray-300 px-5 py-2 relative" style={{ borderRadius: '0 0 12px 12px' }}>
+       <div className="bg-white border-t border-gray-300 px-4 py-1.5 relative" style={{ borderRadius: '0 0 12px 12px' }}>
          <div className="flex items-start justify-between">
-           <div className="flex-1">
-             <div className="flex items-center space-x-2 mb-1">
-               <div 
-                 className="w-1 h-6 rounded-full" 
-                 style={{ backgroundColor: item.color }}
-               />
+           <div className="flex items-start space-x-2.5 flex-1">
+             <div 
+               className="w-1 h-5 rounded-full mt-0.5" 
+               style={{ backgroundColor: item.color }}
+             />
+             <div className="flex-1">
+               <h3 className="text-xs font-semibold text-gray-950 leading-tight mb-0.5">
+                 {item.title}
+               </h3>
                <span className="text-xs text-gray-600 font-medium">{item.createdAt}</span>
              </div>
-             <h3 className="text-xs font-semibold text-gray-950 leading-tight">
-               {item.title}
-             </h3>
            </div>
            <div className="flex space-x-1 ml-2">
              <Button
@@ -449,6 +469,7 @@ function CanvasControls({
 export default function CanvasPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useUser();
   const knowledgeBaseId = params.id as string;
   
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBase | null>(null);
@@ -477,6 +498,57 @@ export default function CanvasPage() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [maxHistorySize] = useState(50); // 最大历史记录数量
 
+  useEffect(() => {
+    if (knowledgeBaseId && user) {
+      const fetchCanvasData = async () => {
+        try {
+          const cards = await pullCanvasState(parseInt(knowledgeBaseId), user.id);
+          
+          // 并行获取所有卡片的详细内容
+          const itemsPromises = cards.map(async (card: RawCardResponse) => {
+            let articleContent: ArticleContent | null = null;
+            
+            // 根据content_id获取文档内容
+            if (card.content_id) {
+              try {
+                articleContent = await getArticleById(card.content_id, user.id);
+              } catch (error) {
+                console.warn(`Failed to fetch article content for content_id ${card.content_id}:`, error);
+              }
+            }
+            
+            return {
+              id: card.id.toString(),
+              type: 'text' as const,
+              title: articleContent?.summary_title || articleContent?.filename || `Card ${card.id}`,
+              content: articleContent?.text_data || card.summary || `Content for card ${card.id}`,
+              summary: articleContent?.summary_content || card.summary || `Summary for card ${card.id}`,
+              position: { x: card.position_x, y: card.position_y },
+              size: { width: 250, height: 150 },
+              centerOffset: { x: 0, y: 0 },
+              zIndex: 1,
+              color: '#3B82F6',
+              connectionPoints: {
+                title: { left: true, right: true },
+                content: { left: true, right: true },
+              },
+              createdAt: articleContent?.created_at || new Date().toISOString(),
+              updatedAt: articleContent?.updated_at || new Date().toISOString(),
+            };
+          });
+          
+          const items = await Promise.all(itemsPromises);
+          setKnowledgeBase({ id: knowledgeBaseId, title: 'Canvas', description: '', items });
+        } catch (error) {
+          console.error('Failed to fetch canvas state:', error);
+        }
+      };
+      fetchCanvasData();
+    }
+  }, [knowledgeBaseId, user]);
+
+
+
   // 配置拖拽传感器
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -485,127 +557,6 @@ export default function CanvasPage() {
       },
     })
   );
-
-  // 模拟知识库数据
-  useEffect(() => {
-    // 模拟从API获取数据
-    const mockKnowledgeBase: KnowledgeBase = {
-      id: knowledgeBaseId,
-      title: getKnowledgeBaseTitle(knowledgeBaseId),
-      description: '这是一个知识库的详细描述',
-      items: [
-        {
-          id: '1',
-          type: 'text',
-          title: '重要笔记',
-          content: '这是一段重要的文本内容，包含了关键信息和要点。',
-          summary: '## 函数最值问题\n\n若函数在闭区间[a,b]上单调递增，则$f(a)$为最小值，$f(b)$为最大值；\n\n若函数在闭区间[a,b]上单调递减，则$f(a)$为最大值，$f(b)$为最小值；\n\n对于非单调函数，需结合导数找到极值点，再与端点值比较确定最值。',
-          position: { x: 100, y: 100 },
-          size: { width: 214, height: 292 },
-          centerOffset: { x: -300, y: -250 },
-          zIndex: 1,
-          color: '#3B82F6',
-          connectionPoints: {
-            title: { left: false, right: true },
-            content: { left: false, right: true }
-          },
-          createdAt: '2024-01-15',
-          updatedAt: '2024-01-15'
-        },
-        {
-          id: '2',
-          type: 'link',
-          title: '参考链接',
-          content: 'https://example.com - 这是一个有用的参考链接',
-          summary: '## 链接资源\n\n这是一个重要的参考资源，包含了相关的理论基础和实践案例。\n\n建议深入学习其中的核心概念。',
-          position: { x: 400, y: 150 },
-          size: { width: 214, height: 292 },
-          centerOffset: { x: 0, y: -200 },
-          zIndex: 2,
-          color: '#8B5CF6',
-          connectionPoints: {
-            title: { left: true, right: false },
-            content: { left: true, right: false }
-          },
-          createdAt: '2024-01-14',
-          updatedAt: '2024-01-14'
-        },
-        {
-          id: '3',
-          type: 'note',
-          title: '快速备忘',
-          content: '记住明天的会议，准备相关材料。',
-          summary: '## 会议准备\n\n明日会议重点：\n- 准备项目进度报告\n- 整理相关资料\n- 确认参会人员',
-          position: { x: 200, y: 300 },
-          size: { width: 214, height: 292 },
-          centerOffset: { x: -200, y: -50 },
-          zIndex: 3,
-          color: '#F59E0B',
-          connectionPoints: {
-            title: { left: true, right: true },
-            content: { left: false, right: true }
-          },
-          createdAt: '2024-01-13',
-          updatedAt: '2024-01-13'
-        }
-      ]
-    };
-    setKnowledgeBase(mockKnowledgeBase);
-    
-    // 初始化历史记录
-    setHistory([mockKnowledgeBase]);
-    setHistoryIndex(0);
-  }, [knowledgeBaseId]);
-
-  // 键盘事件监听器
-  useEffect(() => {
-    /**
-     * 处理键盘事件
-     */
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 撤回和重做快捷键（优先级最高）
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-        return;
-      }
-      
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault();
-        handleRedo();
-        return;
-      }
-      
-      // 选中项相关操作
-      if (selectedItems.length === 0) return;
-      
-      if (e.key === 'Backspace') {
-        // Backspace键：清除选中卡片的内容
-        handleClearSelectedItems();
-      } else if (e.key === 'Delete') {
-        // Delete键：删除选中的卡片
-        handleDeleteSelectedItems();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItems, historyIndex, history]);
-
-  /**
-   * 根据ID获取知识库标题
-   */
-  function getKnowledgeBaseTitle(id: string): string {
-    const titles: { [key: string]: string } = {
-      '1': '工作笔记',
-      '2': '学习资料',
-      '3': '项目灵感',
-      '4': '生活记录',
-      '5': '读书笔记',
-      '6': '健康管理'
-    };
-    return titles[id] || '未知知识库';
-  }
 
   /**
    * 添加新的知识项
@@ -681,6 +632,33 @@ export default function CanvasPage() {
 
     const updatedItems = knowledgeBase.items.filter(item => item.id !== id);
     setKnowledgeBase({ ...knowledgeBase, items: updatedItems });
+  };
+
+  /**
+   * 处理卡片点击事件 - 层级管理
+   */
+  const handleCardClick = (clickedItemId: string) => {
+    if (!knowledgeBase) return;
+
+    // 保存当前状态到历史记录
+    saveToHistory(knowledgeBase);
+
+    setKnowledgeBase(prev => {
+      if (!prev) return prev;
+      
+      // 被点击的卡片层级设为最高
+      const maxZIndex = Math.max(...prev.items.map(i => i.zIndex || 0), 0);
+      
+      return {
+        ...prev,
+        items: prev.items.map(item => {
+          if (item.id === clickedItemId) {
+            return { ...item, zIndex: maxZIndex + 1 };
+          }
+          return item;
+        })
+      };
+    });
   };
 
   /**
@@ -792,59 +770,76 @@ export default function CanvasPage() {
       .map(item => item.id);
   };
 
-  /**
-   * 处理拖拽开始事件
-   */
   const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(active.id as string);
+    setActiveId(event.active.id as string);
   };
 
-  /**
-   * 处理拖拽结束事件
-   */
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, delta } = event;
-    
-    if (!knowledgeBase) return;
-    
-    const item = knowledgeBase.items.find(item => item.id === active.id);
-    if (item && delta) {
-      // 保存当前状态到历史记录
-      saveToHistory(knowledgeBase);
-      
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, delta, over } = event;
+    setActiveId(null);
+
+    if (!knowledgeBase || !user) return;
+
+    let updatedItems = [...knowledgeBase.items];
+    let isNewItem = false;
+
+    // 从侧边栏拖拽新卡片
+    if (active.id.toString().startsWith('template-') && over?.id === 'canvas') {
+      const template = active.data.current?.template;
+      if (!template) return;
+
+      isNewItem = true;
+      const newItem: KnowledgeItem = {
+        id: `item-${Date.now()}`,
+        type: template.type,
+        title: template.title,
+        content: template.content,
+        summary: template.content,
+        position: { 
+          x: (event.activatorEvent as MouseEvent).clientX - 107 - canvasTransform.translateX,
+          y: (event.activatorEvent as MouseEvent).clientY - 146 - canvasTransform.translateY
+        },
+        size: { width: 214, height: 292 },
+        centerOffset: { x: 0, y: 0 },
+        zIndex: knowledgeBase.items.length + 1,
+        color: template.color,
+        connectionPoints: {
+          title: { left: true, right: true },
+          content: { left: true, right: true }
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      updatedItems.push(newItem);
+    } else if (delta.x !== 0 || delta.y !== 0) { // 移动现有卡片
+      const itemIndex = updatedItems.findIndex(i => i.id === active.id);
+      if (itemIndex === -1) return;
+
+      const item = updatedItems[itemIndex];
       const newPosition = {
         x: item.position.x + delta.x,
-        y: item.position.y + delta.y
+        y: item.position.y + delta.y,
       };
-      
-      // 计算画布中心（假设画布尺寸为视窗大小）
-      const canvasCenter = {
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2
-      };
-      
-      // 更新相对于画布中心的偏移量
-      const newCenterOffset = {
-        x: newPosition.x + item.size.width / 2 - canvasCenter.x,
-        y: newPosition.y + item.size.height / 2 - canvasCenter.y
-      };
-      
-      const updatedItems = knowledgeBase.items.map(currentItem => 
-        currentItem.id === active.id 
-          ? { 
-              ...currentItem, 
-              position: newPosition,
-              centerOffset: newCenterOffset,
-              updatedAt: new Date().toISOString()
-            }
-          : currentItem
-      );
-      
-      setKnowledgeBase({ ...knowledgeBase, items: updatedItems });
+      updatedItems[itemIndex] = { ...item, position: newPosition, updatedAt: new Date().toISOString() };
+    } else {
+      return; // 没有移动，直接返回
     }
-    
-    setActiveId(null);
+
+    saveToHistory({ ...knowledgeBase, items: updatedItems });
+    setKnowledgeBase({ ...knowledgeBase, items: updatedItems });
+
+    try {
+      const cardsToPush = updatedItems.map(i => ({
+        card_id: parseInt(i.id.replace('item-', '')), // 确保ID是数字
+        content_id: parseInt(i.id.replace('item-', '')), // FIXME: content_id
+        position: i.position,
+      }));
+      await pushCanvasState(parseInt(knowledgeBaseId), cardsToPush, user.id);
+    } catch (error) {
+      console.error('Failed to push canvas state:', error);
+      // 如果API调用失败，可以考虑回滚状态
+      // setKnowledgeBase(history[historyIndex]);
+    }
   };
 
   /**
@@ -902,6 +897,22 @@ export default function CanvasPage() {
   };
 
   /**
+   * 检测鼠标位置是否在任何卡片上
+   */
+  const isMouseOverCard = (mouseX: number, mouseY: number): boolean => {
+    if (!knowledgeBase) return false;
+    
+    return knowledgeBase.items.some(item => {
+      const itemLeft = item.position.x;
+      const itemRight = item.position.x + item.size.width;
+      const itemTop = item.position.y;
+      const itemBottom = item.position.y + item.size.height;
+      
+      return mouseX >= itemLeft && mouseX <= itemRight && mouseY >= itemTop && mouseY <= itemBottom;
+    });
+  };
+
+  /**
    * 处理鼠标按下事件（开始平移或框选）
    */
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -910,15 +921,18 @@ export default function CanvasPage() {
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
     } else if (e.button === 0 && selectedTool === 'component') { // 左键且为鼠标工具
-      e.preventDefault();
       const rect = e.currentTarget.getBoundingClientRect();
       const startX = (e.clientX - rect.left - canvasTransform.translateX) / canvasTransform.scale;
       const startY = (e.clientY - rect.top - canvasTransform.translateY) / canvasTransform.scale;
       
-      setIsSelecting(true);
-      setSelectionStart({ x: startX, y: startY });
-      setSelectionEnd({ x: startX, y: startY });
-      setSelectedItems([]); // 清除之前的选择
+      // 检测鼠标是否在卡片上，如果在卡片上则不开启选择框
+      if (!isMouseOverCard(startX, startY)) {
+        e.preventDefault();
+        setIsSelecting(true);
+        setSelectionStart({ x: startX, y: startY });
+        setSelectionEnd({ x: startX, y: startY });
+        setSelectedItems([]); // 清除之前的选择
+      }
     }
   };
 
@@ -1016,7 +1030,7 @@ export default function CanvasPage() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <h1 className="text-lg font-semibold text-gray-800">
-              {getKnowledgeBaseTitle(knowledgeBaseId)}
+              {knowledgeBase?.title || 'Canvas'}
             </h1>
           </div>
         </div>
@@ -1067,6 +1081,7 @@ export default function CanvasPage() {
                     item={item}
                     onEdit={handleEditItem}
                     onDelete={handleDeleteItem}
+                    onCardClick={handleCardClick}
                     isSelected={selectedItems.includes(item.id)}
                   />
                 ))}
@@ -1093,6 +1108,9 @@ export default function CanvasPage() {
           
           {/* 工具栏 */}
         <Toolbar onItemClick={handleToolbarClick} activeItem={selectedTool} />
+        
+        {/* 右侧边栏 */}
+        <CanvasSidebar />
           
           {/* 底部控制栏 */}
           <CanvasControls

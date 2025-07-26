@@ -33,11 +33,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     setIsLoading(true);
     try {
-      const loggedIn = isLoggedIn();
-      if (loggedIn) {
-        const userInfo = await getCurrentUserSafe();
-        setUser(userInfo);
-        setIsAuthenticated(!!userInfo);
+      if (!isLoggedIn()) {
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+      
+      const userData = await getCurrentUserSafe();
+      if (userData) {
+        setUser(userData);
+        setIsAuthenticated(true);
       } else {
         setUser(null);
         setIsAuthenticated(false);
