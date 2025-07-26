@@ -14,6 +14,9 @@ function AuthCallbackContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('正在处理授权...');
+  
+  // 获取API基础URL
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.cb.smart-teach.cn';
 
   useEffect(() => {
     /**
@@ -42,7 +45,7 @@ function AuthCallbackContent() {
         }
 
         // 构建回调API URL，包含所有必要参数
-        const callbackUrl = new URL('http://183.131.51.193:8000/api/v2/auth/oauth/callback');
+        const callbackUrl = new URL(`${API_BASE_URL}/api/v2/auth/oauth/callback`);
         callbackUrl.searchParams.set('code', code);
         if (state) {
           callbackUrl.searchParams.set('state', state);

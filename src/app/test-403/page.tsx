@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { apiClient, apiGet } from '@/lib/api-client';
 import { getCurrentUser, getSessionStatus, logout, isLoggedIn, getCurrentUserSafe } from '@/lib/auth-api';
+import { popupOAuthLogin, isPopupSupported } from '@/lib/popup-oauth';
 
 /**
  * 403错误测试页面
@@ -15,6 +16,9 @@ export default function Test403Page() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // 获取API基础URL
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.cb.smart-teach.cn';
 
   /**
    * 模拟触发403错误的API请求
@@ -26,7 +30,7 @@ export default function Test403Page() {
 
     try {
       // 使用一个会返回403的测试端点
-      const response = await apiClient('http://183.131.51.193:8000/api/v2/test/forbidden', {
+      const response = await apiClient(`${API_BASE_URL}/api/v2/test/forbidden`, {
         method: 'GET',
       });
       
@@ -151,6 +155,35 @@ export default function Test403Page() {
     }
   };
 
+  /**
+   * 测试弹窗登录
+   */
+  const testPopupLogin = async () => {
+    setIsLoading(true);
+    setResult(null);
+    setError(null);
+
+    try {
+      if (!isPopupSupported()) {
+        setError('当前浏览器不支持弹窗功能');
+        return;
+      }
+
+      const result = await popupOAuthLogin();
+      
+      if (result.success) {
+        setResult(`弹窗登录成功!\n用户ID: ${result.userId}\nSession ID: ${result.sessionId}`);
+      } else {
+        setError(`弹窗登录失败: ${result.error}`);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '未知错误';
+      setError('弹窗登录错误: ' + errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <Card className="w-full max-w-2xl">
@@ -228,6 +261,15 @@ export default function Test403Page() {
             >
               登出
             </Button>
+            
+            <Button 
+              onClick={testPopupLogin}
+              disabled={isLoading}
+              variant="default"
+              size="sm"
+            >
+              弹窗登录测试
+            </Button>
           </div>
 
           {result && (
@@ -256,6 +298,7 @@ export default function Test403Page() {
               <li>"检查Session状态"：调用 /api/v2/auth/session/status 检查session有效性</li>
               <li>"检查登录状态"：通过session状态判断是否已登录</li>
               <li>"登出"：调用 /api/v2/auth/logout 清除cookie和session</li>
+              <li>"弹窗登录测试"：测试新的弹窗OAuth登录流程</li>
             </ul>
             <div className="mt-3 p-2 bg-blue-50 rounded">
               <p className="text-blue-800 font-medium">新版本认证说明：</p>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth 登录回调</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success {
+            color: #27ae60;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .message {
+            margin-top: 1rem;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner" id="spinner"></div>
+        <h2 id="title">正在处理登录...</h2>
+        <p id="message" class="message">请稍候，正在验证您的登录信息</p>
+    </div>
+
+    <script>
+        // OAuth回调处理脚本
+        (function() {
+            const API_BASE_URL = 'https://api.cb.smart-teach.cn';
+            
+            // 更新UI状态
+            function updateUI(title, message, isSuccess = null, hideSpinner = false) {
+                document.getElementById('title').textContent = title;
+                document.getElementById('message').textContent = message;
+                
+                if (hideSpinner) {
+                    document.getElementById('spinner').style.display = 'none';
+                }
+                
+                if (isSuccess === true) {
+                    document.getElementById('title').className = 'success';
+                } else if (isSuccess === false) {
+                    document.getElementById('title').className = 'error';
+                }
+            }
+            
+            // 向父窗口发送消息
+            function sendMessageToParent(result) {
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'oauth_result',
+                        payload: result
+                    }, window.location.origin);
+                }
+            }
+            
+            // 处理OAuth回调
+            async function handleCallback() {
+                try {
+                    // 获取URL参数
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const code = urlParams.get('code');
+                    const error = urlParams.get('error');
+                    const state = urlParams.get('state');
+                    const errorDescription = urlParams.get('error_description');
+                    
+                    // 处理授权错误
+                    if (error) {
+                        const errorMsg = errorDescription || error;
+                        updateUI('登录失败', `授权失败: ${errorMsg}`, false, true);
+                        sendMessageToParent({
+                            success: false,
+                            error: errorMsg
+                        });
+                        return;
+                    }
+                    
+                    if (!code) {
+                        updateUI('登录失败', '未收到授权码', false, true);
+                        sendMessageToParent({
+                            success: false,
+                            error: '未收到授权码'
+                        });
+                        return;
+                    }
+                    
+                    updateUI('正在验证...', '正在验证授权码，请稍候');
+                    
+                    // 调用弹窗回调API
+                    const response = await fetch(`${API_BASE_URL}/api/v2/auth/oauth/popup-callback`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            code: code,
+                            state: state
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        updateUI('登录成功', '正在关闭窗口...', true, true);
+                        
+                        // 发送成功消息到父窗口
+                        sendMessageToParent({
+                            success: true,
+                            sessionId: data.session_id,
+                            userId: data.user_id
+                        });
+                        
+                        // 延迟关闭窗口
+                        setTimeout(() => {
+                            window.close();
+                        }, 1500);
+                    } else {
+                        const errorData = await response.json();
+                        const errorMsg = errorData.message || '登录验证失败';
+                        
+                        updateUI('登录失败', errorMsg, false, true);
+                        sendMessageToParent({
+                            success: false,
+                            error: errorMsg
+                        });
+                    }
+                } catch (error) {
+                    console.error('OAuth回调处理错误:', error);
+                    updateUI('登录失败', '网络错误，请稍后重试', false, true);
+                    sendMessageToParent({
+                        success: false,
+                        error: '网络错误，请稍后重试'
+                    });
+                }
+            }
+            
+            // 页面加载完成后开始处理
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', handleCallback);
+            } else {
+                handleCallback();
+            }
+        })();
+    </script>
+</body>
+</html>

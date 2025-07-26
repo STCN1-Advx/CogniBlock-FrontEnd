@@ -6,6 +6,9 @@ import { apiGet, apiPost } from './api-client';
  * 认证相关API接口
  */
 
+// 获取API基础URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.cb.smart-teach.cn';
+
 /**
  * 用户信息接口
  */
@@ -32,7 +35,7 @@ export interface SessionStatus {
  * 需要认证，无效session时返回403
  */
 export async function getCurrentUser(): Promise<UserInfo> {
-  return apiGet<UserInfo>('http://183.131.51.193:8000/api/v2/auth/me');
+  return apiGet<UserInfo>(`${API_BASE_URL}/api/v2/auth/me`);
 }
 
 /**
@@ -40,7 +43,7 @@ export async function getCurrentUser(): Promise<UserInfo> {
  * 可选认证，返回当前session的有效性
  */
 export async function getSessionStatus(): Promise<SessionStatus> {
-  return apiGet<SessionStatus>('http://183.131.51.193:8000/api/v2/auth/session/status');
+  return apiGet<SessionStatus>(`${API_BASE_URL}/api/v2/auth/session/status`);
 }
 
 /**
@@ -48,7 +51,7 @@ export async function getSessionStatus(): Promise<SessionStatus> {
  * 清除cookie和session
  */
 export async function logout(): Promise<void> {
-  return apiPost<void>('http://183.131.51.193:8000/api/v2/auth/logout');
+  return apiPost<void>(`${API_BASE_URL}/api/v2/auth/logout`);
 }
 
 /**
