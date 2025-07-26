@@ -370,7 +370,7 @@ export function CanvasSidebar() {
       const formData = new FormData();
       formData.append('file', imageBlob, 'camera-capture.jpg');
       
-      const baseUrl = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:8000' : '';
+      const baseUrl = process.env.NODE_ENV === 'development' ? 'https://api.cb.smart-teach.cn' : '';
       
       // 直接调用笔记总结API处理图片
       const summaryResponse = await fetch(`${baseUrl}/api/v2/note-summary-single/process?action=summarize`, {
