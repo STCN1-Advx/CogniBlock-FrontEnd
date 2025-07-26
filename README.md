@@ -2,7 +2,7 @@
 
 <div align="center">
     <img width="2560" height="1440" alt="banner" src="https://github.com/user-attachments/assets/efe4bf2d-0c6e-4532-abe3-583271b22b59" />
-  **智能知识管理系统前端应用**
+  智能知识管理系统前端应用
   
   [![Next.js](https://img.shields.io/badge/Next.js-15.3.3-black?style=flat-square&logo=next.js)](https://nextjs.org/)
   [![React](https://img.shields.io/badge/React-18.3.1-blue?style=flat-square&logo=react)](https://reactjs.org/)
