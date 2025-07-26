@@ -3,6 +3,7 @@ import './globals.css';
 import { GlobalBackground } from '@/components/ui/global-background';
 import { ConditionalHeader, ConditionalWrapper } from '@/components/ui/conditional-header';
 import { AuthGuard } from '@/components/auth-guard';
+import { UserProvider } from '@/contexts/user-context';
 
 export const metadata: Metadata = {
   title: 'CogniBlock',
@@ -24,14 +25,16 @@ export default function RootLayout({
 
       </head>
       <body className="font-body antialiased">
-        <AuthGuard>
-          <ConditionalHeader />
-          <GlobalBackground>
-            <ConditionalWrapper>
-              {children}
-            </ConditionalWrapper>
-          </GlobalBackground>
-        </AuthGuard>
+        <UserProvider>
+          <AuthGuard>
+            <ConditionalHeader />
+            <GlobalBackground>
+              <ConditionalWrapper>
+                {children}
+              </ConditionalWrapper>
+            </GlobalBackground>
+          </AuthGuard>
+        </UserProvider>
       </body>
     </html>
   );

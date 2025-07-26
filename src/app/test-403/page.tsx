@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { apiClient, apiGet } from '@/lib/api-client';
 import { getCurrentUser, getSessionStatus, logout, isLoggedIn, getCurrentUserSafe } from '@/lib/auth-api';
 import { popupOAuthLogin, isPopupSupported } from '@/lib/popup-oauth';
+import { useUser } from '@/contexts/user-context';
 
 /**
  * 403错误测试页面
@@ -16,6 +17,7 @@ export default function Test403Page() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { refreshUser } = useUser();
   
   // 获取API基础URL
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.cb.smart-teach.cn';
@@ -175,6 +177,9 @@ export default function Test403Page() {
       
       if (result.success) {
         setResult(`弹窗登录成功!\n用户ID: ${result.userId}\nSession ID: ${result.sessionId}`);
+        
+        // 刷新用户状态
+        await refreshUser();
         
         // 验证Cookie是否设置成功
         setTimeout(() => {

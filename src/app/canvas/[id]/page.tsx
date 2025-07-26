@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Move
 } from 'lucide-react';
+import { useHeaderAwarePositioning } from '@/hooks/use-header-aware-positioning';
 import { Toolbar } from '@/components/ui/toolbar';
 import {
   DndContext,
@@ -1133,6 +1134,7 @@ function EditModal({
 }) {
   const [title, setTitle] = useState(item.title);
   const [content, setContent] = useState(item.content);
+  const { dialogPositioning } = useHeaderAwarePositioning();
 
   const handleSave = () => {
     onSave(title, content);
@@ -1140,7 +1142,14 @@ function EditModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+      <div 
+        className="bg-white rounded-lg p-6 w-full max-w-md mx-4 overflow-y-auto"
+        style={{
+          maxHeight: dialogPositioning.maxHeight,
+          marginTop: '1rem',
+          marginBottom: '1rem'
+        }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">编辑内容</h3>
           <Button

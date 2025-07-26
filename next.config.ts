@@ -16,7 +16,21 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/v2/:path*',
+        destination: 'https://api.cb.smart-teach.cn/api/v2/:path*',
+      },
+    ];
   },
 };
 

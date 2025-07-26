@@ -82,11 +82,18 @@
                 if (window.opener) {
                     // 发送消息到父窗口，使用通配符origin或者具体的父窗口origin
                     const parentOrigin = '*'; // 在生产环境中应该使用具体的origin
-                    window.opener.postMessage({
+                    const message = {
                         type: 'oauth_result',
                         payload: result
-                    }, parentOrigin);
-                    console.log('发送消息到父窗口:', result);
+                    };
+                    console.log('准备发送消息到父窗口:', message);
+                    console.log('父窗口存在:', !!window.opener);
+                    console.log('当前窗口origin:', window.location.origin);
+                    
+                    window.opener.postMessage(message, parentOrigin);
+                    console.log('消息已发送到父窗口');
+                } else {
+                    console.error('父窗口不存在，无法发送消息');
                 }
             }
             
