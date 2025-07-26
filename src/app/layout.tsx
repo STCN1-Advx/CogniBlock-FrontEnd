@@ -1,5 +1,8 @@
 import type {Metadata} from 'next';
 import './globals.css';
+import { GlobalBackground } from '@/components/ui/global-background';
+import { ConditionalHeader, ConditionalWrapper } from '@/components/ui/conditional-header';
+import { AuthGuard } from '@/components/auth-guard';
 
 export const metadata: Metadata = {
   title: 'CogniBlock',
@@ -12,13 +15,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <meta name="theme-color" content="#66ccff" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
       </head>
-      <body className="font-body antialiased">{children}</body>
+      <body className="font-body antialiased">
+        <AuthGuard>
+          <ConditionalHeader />
+          <GlobalBackground>
+            <ConditionalWrapper>
+              {children}
+            </ConditionalWrapper>
+          </GlobalBackground>
+        </AuthGuard>
+      </body>
     </html>
   );
 }

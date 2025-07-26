@@ -1,76 +1,62 @@
-import { Camera, FileText, Mic } from 'lucide-react';
-import type { Metadata } from 'next';
-import { Card, CardContent } from '@/components/ui/card';
+'use client';
+
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export const metadata: Metadata = {
-  title: 'Home | CogniBlock',
-  description: 'Welcome to CogniBlock. Capture your world by uploading photos, text, or voice notes.',
-};
 
-function UploadOptionCard({
-  icon,
-  title,
-  description,
-  href,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  href: string;
-}) {
+/**
+ * 开屏页面组件
+ * 提供OAuth外部授权登录功能
+ */
+export default function HomePage() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  /**
+   * 处理OAuth登录跳转
+   */
+  const handleOAuthLogin = () => {
+    setIsLoading(true);
+    
+    // 构建回调URL
+    const redirectUri = `${window.location.origin}/auth/callback`;
+    const encodedRedirectUri = encodeURIComponent(redirectUri);
+    
+    // 直接跳转到OAuth授权页面
+    window.location.href = `http://183.131.51.193:8000/api/v2/auth/login?redirect_uri=${encodedRedirectUri}`;
+  };
+
   return (
-    <Link href={href} className="block">
-      <Card className="group cursor-pointer overflow-hidden text-center transition-all duration-300 ease-in-out hover:shadow-2xl hover:-translate-y-2 hover:border-accent/50 bg-card/50 backdrop-blur-sm h-full">
-        <CardContent className="flex h-full flex-col items-center justify-center gap-4 p-8">
-          <div className="rounded-full bg-accent/10 p-5 transition-colors duration-300 group-hover:bg-accent/20">
-            {icon}
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold">欢迎使用 CogniBlock</CardTitle>
+          <CardDescription>
+            请使用外部授权登录系统
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Button 
+              onClick={handleOAuthLogin}
+              className="w-full" 
+              disabled={isLoading}
+            >
+              {isLoading ? '跳转中...' : 'OAuth 授权登录'}
+            </Button>
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-foreground">{title}</h3>
-            <p className="mt-1 text-muted-foreground">{description}</p>
+          
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              还没有账户？{' '}
+              <Link href="/register" className="text-blue-600 hover:underline">
+                立即注册
+              </Link>
+            </p>
           </div>
         </CardContent>
       </Card>
-    </Link>
-  );
-}
-
-export default function Home() {
-  return (
-    <main className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-background p-4">
-      <div className="absolute inset-0 z-0 opacity-50">
-        <div className="absolute bottom-0 left-[-20%] right-[-20%] top-[-20%] h-[140%] w-[140%] bg-[radial-gradient(at_50%_50%,hsl(var(--primary))_0%,transparent_50%)]"></div>
-        <div className="absolute bottom-0 right-[-10%] top-[-10%] h-[120%] w-[120%] bg-[radial-gradient(at_50%_50%,hsl(var(--accent))_0%,transparent_50%)]"></div>
-      </div>
-      <div className="container z-10 mx-auto flex max-w-5xl flex-col items-center justify-center py-16 text-center">
-        <h1 className="font-headline text-5xl font-extrabold tracking-tight text-foreground drop-shadow-lg sm:text-6xl md:text-7xl">
-          CogniBlock
-        </h1>
-        <p className="mt-4 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-          Capture your world. Upload photos, text, or voice notes seamlessly.
-        </p>
-        <div className="mt-12 grid w-full max-w-4xl grid-cols-1 gap-6 sm:grid-cols-3">
-          <UploadOptionCard
-            icon={<Camera className="size-12 text-accent" />}
-            title="Photo Upload"
-            description="Snap or select a picture"
-            href="/photo"
-          />
-          <UploadOptionCard
-            icon={<FileText className="size-12 text-accent" />}
-            title="Text Upload"
-            description="Paste or type your thoughts"
-            href="#"
-          />
-          <UploadOptionCard
-            icon={<Mic className="size-12 text-accent" />}
-            title="Voice Upload"
-            description="Record a quick audio note"
-            href="#"
-          />
-        </div>
-      </div>
-    </main>
+    </div>
   );
 }
