@@ -12,6 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
  */
 export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
+  
+  // 获取API基础URL
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.cb.smart-teach.cn';
 
   /**
    * 处理OAuth登录跳转
@@ -24,7 +27,7 @@ export default function HomePage() {
     const encodedRedirectUri = encodeURIComponent(redirectUri);
     
     // 直接跳转到OAuth授权页面
-    window.location.href = `http://183.131.51.193:8000/api/v2/auth/login?redirect_uri=${encodedRedirectUri}`;
+    window.location.href = `${API_BASE_URL}/api/v2/auth/login?redirect_uri=${encodedRedirectUri}`;
   };
 
   return (
