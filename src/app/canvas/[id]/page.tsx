@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -517,6 +517,10 @@ export default function CanvasPage() {
   const { user } = useUser();
   const knowledgeBaseId = params.id as string;
   
+  // 使用ref跟踪数据加载状态，防止重复请求
+  const hasLoadedData = useRef(false);
+  const currentKnowledgeBaseId = useRef<string | null>(null);
+  
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBase | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
@@ -543,54 +547,80 @@ export default function CanvasPage() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [maxHistorySize] = useState(50); // 最大历史记录数量
 
-  useEffect(() => {
-    if (knowledgeBaseId && user) {
-      const fetchCanvasData = async () => {
-        try {
-          const cards = await pullCanvasState(parseInt(knowledgeBaseId), user.id);
-          
-          // 并行获取所有卡片的详细内容
-          const itemsPromises = cards.map(async (card: RawCardResponse) => {
-            let contentDetail: ContentDetail | null = null;
-            
-            // 根据content_id获取内容详情
-            if (card.content_id) {
-              try {
-                contentDetail = await getContentById(card.content_id, user.id);
-              } catch (error) {
-                console.warn(`Failed to fetch content detail for content_id ${card.content_id}:`, error);
-              }
-            }
-            
-            return {
-              id: card.id ? card.id.toString() : `card-${Date.now()}-${Math.random()}`,
-              type: (contentDetail?.content_type === 'image' ? 'image' : 'text') as 'text' | 'image' | 'link' | 'note',
-              title: contentDetail?.summary_title || `Card ${card.id || 'Unknown'}`,
-              content: contentDetail?.text_data || contentDetail?.debug_info?.effective_content || card.summary || `Content for card ${card.id || 'Unknown'}`,
-              summary: contentDetail?.summary_content || contentDetail?.text_data_preview || card.summary || `Summary for card ${card.id || 'Unknown'}`,
-              position: { x: card.position_x, y: card.position_y },
-              size: { width: 250, height: 150 },
-              centerOffset: { x: 0, y: 0 },
-              zIndex: 1,
-              color: '#3B82F6',
-              connectionPoints: {
-                title: { left: true, right: true },
-                content: { left: true, right: true },
-              },
-              createdAt: contentDetail?.created_at || new Date().toISOString(),
-              updatedAt: contentDetail?.updated_at || new Date().toISOString(),
-            };
-          });
-          
-          const items = await Promise.all(itemsPromises);
-          setKnowledgeBase({ id: knowledgeBaseId, title: 'Canvas', description: '', items });
-        } catch (error) {
-          console.error('Failed to fetch canvas state:', error);
+  // 创建稳定的数据获取函数
+  const fetchCanvasData = useCallback(async () => {
+    if (!knowledgeBaseId || !user) return;
+    
+    // 检查是否已经为当前knowledgeBaseId加载过数据
+    if (hasLoadedData.current && currentKnowledgeBaseId.current === knowledgeBaseId) {
+      return;
+    }
+    
+    // 标记开始加载，防止重复请求
+    hasLoadedData.current = true;
+    currentKnowledgeBaseId.current = knowledgeBaseId;
+    
+    try {
+      console.log(`Fetching canvas data for ID: ${knowledgeBaseId}`);
+      const cards = await pullCanvasState(parseInt(knowledgeBaseId), user.id);
+      
+      // 并行获取所有卡片的详细内容
+      const itemsPromises = cards.map(async (card: RawCardResponse) => {
+        let contentDetail: ContentDetail | null = null;
+        
+        // 根据content_id获取内容详情
+        if (card.content_id) {
+          try {
+            contentDetail = await getContentById(card.content_id, user.id);
+          } catch (error) {
+            console.warn(`Failed to fetch content detail for content_id ${card.content_id}:`, error);
+          }
         }
-      };
-      fetchCanvasData();
+        
+        return {
+          id: card.id ? card.id.toString() : `card-${Date.now()}-${Math.random()}`,
+          type: (contentDetail?.content_type === 'image' ? 'image' : 'text') as 'text' | 'image' | 'link' | 'note',
+          title: contentDetail?.summary_title || `Card ${card.id || 'Unknown'}`,
+          content: contentDetail?.text_data || contentDetail?.debug_info?.effective_content || card.summary || `Content for card ${card.id || 'Unknown'}`,
+          summary: contentDetail?.summary_content || contentDetail?.text_data_preview || card.summary || `Summary for card ${card.id || 'Unknown'}`,
+          position: { 
+            x: card.position_x ?? 100 + Math.random() * 200, // 为null值提供默认位置
+            y: card.position_y ?? 100 + Math.random() * 200
+          },
+          size: { width: 250, height: 150 },
+          centerOffset: { x: 0, y: 0 },
+          zIndex: 1,
+          color: '#3B82F6',
+          connectionPoints: {
+            title: { left: true, right: true },
+            content: { left: true, right: true },
+          },
+          createdAt: contentDetail?.created_at || new Date().toISOString(),
+          updatedAt: contentDetail?.updated_at || new Date().toISOString(),
+        };
+      });
+      
+      const items = await Promise.all(itemsPromises);
+      setKnowledgeBase({ id: knowledgeBaseId, title: 'Canvas', description: '', items });
+      console.log(`Canvas data loaded successfully for ID: ${knowledgeBaseId}`);
+    } catch (error) {
+      console.error('Failed to fetch canvas state:', error);
+      // 如果请求失败，重置加载状态以允许重试
+      hasLoadedData.current = false;
+      currentKnowledgeBaseId.current = null;
     }
   }, [knowledgeBaseId, user]);
+  
+  // 当knowledgeBaseId或user改变时，重置状态并获取数据
+  useEffect(() => {
+    if (currentKnowledgeBaseId.current !== knowledgeBaseId) {
+      hasLoadedData.current = false;
+      currentKnowledgeBaseId.current = null;
+      setKnowledgeBase(null);
+    }
+    
+    fetchCanvasData();
+  }, [knowledgeBaseId, user, fetchCanvasData]);
 
 
 
@@ -841,6 +871,24 @@ export default function CanvasPage() {
       if (!template) return;
 
       isNewItem = true;
+      
+      // 获取画布容器的边界矩形
+      const canvasElement = document.querySelector('[data-canvas-container]') as HTMLElement;
+      const canvasRect = canvasElement?.getBoundingClientRect();
+      
+      // 计算鼠标在画布坐标系中的位置
+      const mouseEvent = event.activatorEvent as MouseEvent;
+      const canvasX = canvasRect ? mouseEvent.clientX - canvasRect.left : mouseEvent.clientX;
+      const canvasY = canvasRect ? mouseEvent.clientY - canvasRect.top : mouseEvent.clientY;
+      
+      // 转换为画布内部坐标（考虑缩放和平移）
+      const worldX = (canvasX - canvasTransform.translateX) / canvasTransform.scale;
+      const worldY = (canvasY - canvasTransform.translateY) / canvasTransform.scale;
+      
+      // 卡片尺寸
+      const cardWidth = 214;
+      const cardHeight = 292;
+      
       const newItem: KnowledgeItem = {
         id: `item-${Date.now()}`,
         type: template.type,
@@ -848,10 +896,10 @@ export default function CanvasPage() {
         content: template.content,
         summary: template.content,
         position: { 
-          x: (event.activatorEvent as MouseEvent).clientX - 107 - canvasTransform.translateX,
-          y: (event.activatorEvent as MouseEvent).clientY - 146 - canvasTransform.translateY
+          x: worldX - cardWidth / 2,  // 使卡片中心对齐到鼠标位置
+          y: worldY - cardHeight / 2
         },
-        size: { width: 214, height: 292 },
+        size: { width: cardWidth, height: cardHeight },
         centerOffset: { x: 0, y: 0 },
         zIndex: knowledgeBase.items.length + 1,
         color: template.color,
@@ -881,11 +929,33 @@ export default function CanvasPage() {
     setKnowledgeBase({ ...knowledgeBase, items: updatedItems });
 
     try {
-      const cardsToPush = updatedItems.map(i => ({
-        card_id: parseInt(i.id.replace('item-', '')), // 确保ID是数字
-        content_id: parseInt(i.id.replace('item-', '')), // FIXME: content_id
-        position: i.position,
-      }));
+      const cardsToPush = updatedItems.map(i => {
+        // 解析卡片ID，新卡片ID格式为item-timestamp，现有卡片ID为数字字符串
+        let cardId = null;
+        let contentId = null;
+        
+        if (i.id.startsWith('item-')) {
+          // 新创建的卡片，ID为null（由后端分配）
+          cardId = null;
+          contentId = null;
+        } else {
+          // 现有卡片，尝试解析ID
+          const parsedId = parseInt(i.id);
+          if (!isNaN(parsedId)) {
+            cardId = parsedId;
+            contentId = parsedId; // FIXME: content_id应该从实际数据获取
+          }
+        }
+        
+        return {
+          card_id: cardId,
+          content_id: contentId,
+          position: {
+            x: typeof i.position?.x === 'number' ? i.position.x : null,
+            y: typeof i.position?.y === 'number' ? i.position.y : null
+          },
+        };
+      });
       await pushCanvasState(parseInt(knowledgeBaseId), cardsToPush, user.id);
     } catch (error) {
       console.error('Failed to push canvas state:', error);
@@ -1098,6 +1168,7 @@ export default function CanvasPage() {
         <div className="relative w-full h-screen">
           <div 
             className="relative w-full h-full overflow-hidden bg-gray-50"
+            data-canvas-container
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}

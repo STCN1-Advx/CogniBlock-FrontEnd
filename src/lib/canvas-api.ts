@@ -3,13 +3,13 @@ import { apiGet, apiPost } from './api-client';
 // 定义API返回的数据结构
 
 export interface CardPosition {
-  x: number;
-  y: number;
+  x: number | null;
+  y: number | null;
 }
 
 export interface CardResponse {
-  card_id: number;
-  content_id: number;
+  card_id: number | null;
+  content_id: number | null;
   position: CardPosition;
   summary?: string;
 }
